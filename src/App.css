@@ -1,0 +1,244 @@
+/* Super Metroid Colors - Dark theme inspired by Zebes */
+
+:root {
+  --bg: #0a0a12;
+  --bg-card: #12121e;
+  --bg-hover: #1a1a2e;
+  --border: #2a2a3e;
+  --text: #c8c8d8;
+  --text-dim: #888898;
+  --text-bright: #e8e8f8;
+  --accent: #4a9eff;
+  --accent-hover: #6ab4ff;
+  --danger: #ff4a6a;
+  --green: #4aff8a;
+  --purple: #a855f7;
+  --pill-bg: #1e1e30;
+  --pill-active: #2a3a5e;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+  line-height: 1.5;
+}
+
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+/* Header */
+.app-header {
+  text-align: center;
+  padding: 32px 0 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.app-header h1 {
+  font-size: 28px;
+  color: var(--text-bright);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.subtitle {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+/* Upload */
+.upload-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 64px 0;
+}
+.upload-box {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 48px 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  max-width: 500px;
+  width: 100%;
+}
+.upload-box:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+.upload-icon { font-size: 48px; margin-bottom: 12px; }
+.upload-box h2 { font-size: 18px; color: var(--text-bright); margin-bottom: 8px; }
+.upload-box p { font-size: 13px; color: var(--text-dim); }
+.error { color: var(--danger); margin-top: 12px; font-size: 13px; }
+
+/* ROM Info Bar */
+.rom-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+.rom-actions { display: flex; gap: 8px; }
+
+/* Buttons */
+.btn {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text);
+}
+.btn-secondary:hover { background: var(--bg-hover); }
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.btn-danger:hover { background: rgba(255, 74, 106, 0.1); }
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  font-weight: 600;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-large {
+  padding: 12px 32px;
+  font-size: 15px;
+  border-radius: 8px;
+}
+
+/* Sections */
+section { margin-bottom: 24px; }
+section h3 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+/* Category Pills */
+.pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--pill-bg);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pill:hover { background: var(--bg-hover); border-color: var(--accent); }
+.pill.active {
+  background: var(--pill-active);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Effect Groups */
+.effect-group { margin-bottom: 16px; }
+.effect-group h4 {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.effects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+}
+.effect-btn {
+  font-family: inherit;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.effect-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+.effect-btn.active {
+  background: var(--pill-active);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.effect-count {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Palette Preview */
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.palette-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.palette-card h4 {
+  font-size: 11px;
+  color: var(--text-bright);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.swatches { display: flex; gap: 1px; margin-top: 1px; }
+.swatches:first-of-type { margin-top: 0; }
+.swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Effect Log */
+.effect-log {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.log-entry {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+}
+
