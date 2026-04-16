@@ -1,73 +1,34 @@
-# React + TypeScript + Vite
+# Super Metroid Colors
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+ROM palette patcher for Super Metroid. Runs entirely in your browser — upload a ROM, toggle color effects, preview palettes, and download a patched ROM.
 
-Currently, two official plugins are available:
+Supports both Samus/beam palettes and LZ5-compressed tileset palettes for full environment color control.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+<table>
+  <tr>
+    <td><img src="screenshots/sm_colors_main_site.png" alt="Main site UI" width="480"></td>
+    <td><img src="screenshots/sm_colors_psychedelic.png" alt="Psychedelic effect" width="480"></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/sm_colors_gameboy.png" alt="Game Boy effect" width="480"></td>
+    <td><img src="screenshots/sm_colors_grayscale.png" alt="Grayscale effect" width="480"></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/sm_colors_pink_samus.png" alt="Pink Samus" width="480"></td>
+    <td><img src="screenshots/sm_colors_psychedelic02.png" alt="Psychedelic effect in Brinstar" width="480"></td>
+  </tr>
+</table>
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Testing
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm test          # unit tests (vitest)
+npx playwright test  # e2e tests
 ```
