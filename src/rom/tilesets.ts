@@ -118,8 +118,10 @@ export function lz5CompressedSize(rom: Uint8Array, pcOffset: number): number {
 export function patchTilesetPalettes(
   rom: Uint8Array<ArrayBuffer>,
   effects: EffectFn[],
+  colorOverrides?: Map<string, number>,
 ): Uint8Array<ArrayBuffer> {
-  if (effects.length === 0) return rom;
+  const hasOverrides = colorOverrides && [...colorOverrides.keys()].some(k => k.startsWith("tileset:"));
+  if (effects.length === 0 && !hasOverrides) return rom;
 
   const tilesets = readTilesetTable(rom);
   const uniqueOffsets = getUniquePaletteOffsets(tilesets);
@@ -141,6 +143,21 @@ export function patchTilesetPalettes(
     const modified = palette.slice(0, PALETTE_BYTES);
     for (const effectFn of effects) {
       effectFn(modified, 0, PALETTE_BYTES / 2);
+    }
+
+    // Apply per-color overrides for this tileset
+    if (colorOverrides) {
+      for (const [key, bgr555] of colorOverrides) {
+        if (!key.startsWith("tileset:")) continue;
+        const parts = key.split(":");
+        const overridePcOffset = parseInt(parts[1]);
+        if (overridePcOffset !== pcOffset) continue;
+        const colorIdx = parseInt(parts[2]);
+        if (colorIdx >= 0 && colorIdx * 2 + 1 < modified.length) {
+          modified[colorIdx * 2] = bgr555 & 0xff;
+          modified[colorIdx * 2 + 1] = (bgr555 >> 8) & 0xff;
+        }
+      }
     }
 
     patches.push({
