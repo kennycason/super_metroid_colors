@@ -11,7 +11,7 @@ export interface PaletteRegion {
   description: string;
   offset: number;      // PC offset (unheadered)
   colorCount: number;   // number of BGR555 colors (not bytes)
-  category: "samus" | "beams" | "environment";
+  category: "samus" | "beams" | "environment" | "bosses";
 }
 
 // Samus palette blocks: each suit has 33 palettes x 16 colors = 528 colors
@@ -60,6 +60,36 @@ export const REGIONS: PaletteRegion[] = [
     colorCount: 16,
     category: "beams",
   },
+  // Boss palettes — derived from species headers in bank $A0.
+  // Each boss has exactly 1 palette row (16 colors).
+  // Addresses verified against super_metroid_editor's readEnemyPalette().
+  //
+  // NOTE: Most bosses use multiple CGRAM palette rows at runtime. The species
+  // header only points to row 0, so we only patch a subset of each boss's colors.
+  // Some bosses (Phantoon body, Kraid body, Draygon body) use tileset palette
+  // rows loaded separately — those are covered by the Environment tileset patching.
+  //
+  // Only Spore Spawn confirmed fully working. Others commented out pending
+  // per-boss isolation testing (some caused crashes on Containment Chamber).
+  {
+    id: "boss_spore_spawn",
+    name: "Spore Spawn",
+    description: "Spore Spawn palette",
+    offset: 0x12e359,
+    colorCount: 16,
+    category: "bosses",
+  },
+  // Uncomment after individual testing:
+  // { id: "boss_ridley", name: "Ridley", description: "Ridley / Ceres Ridley palette", offset: 0x13614f, colorCount: 16, category: "bosses" },
+  // { id: "boss_kraid", name: "Kraid", description: "Kraid palette", offset: 0x138687, colorCount: 16, category: "bosses" },
+  // { id: "boss_phantoon", name: "Phantoon", description: "Phantoon palette", offset: 0x13ca01, colorCount: 16, category: "bosses" },
+  // { id: "boss_draygon", name: "Draygon", description: "Draygon palette", offset: 0x12a1f7, colorCount: 16, category: "bosses" },
+  // { id: "boss_crocomire", name: "Crocomire", description: "Crocomire palette", offset: 0x12387d, colorCount: 16, category: "bosses" },
+  // { id: "boss_mother_brain", name: "Mother Brain", description: "Mother Brain P1 and P2 palette", offset: 0x149472, colorCount: 16, category: "bosses" },
+  // { id: "boss_botwoon", name: "Botwoon", description: "Botwoon palette", offset: 0x199319, colorCount: 16, category: "bosses" },
+  // { id: "boss_torizo", name: "Torizo", description: "Torizo / Golden Torizo palette", offset: 0x150687, colorCount: 16, category: "bosses" },
+  // { id: "boss_big_metroid", name: "Big Metroid", description: "Baby Metroid (end-game) palette", offset: 0x14f8e6, colorCount: 16, category: "bosses" },
+  // { id: "boss_mini_kraid", name: "Mini Kraid", description: "Mini Kraid palette", offset: 0x13198c, colorCount: 16, category: "bosses" },
 ];
 
 export function getRegionsByCategory(category: PaletteRegion["category"] | "all"): PaletteRegion[] {
@@ -72,4 +102,5 @@ export const CATEGORIES = [
   { id: "samus" as const, name: "Samus" },
   { id: "environment" as const, name: "Environment" },
   { id: "beams" as const, name: "Beams" },
+  { id: "bosses" as const, name: "Bosses" },
 ] as const;

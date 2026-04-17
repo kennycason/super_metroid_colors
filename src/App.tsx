@@ -26,7 +26,7 @@ import {
 import "./App.css";
 
 type Category = PaletteRegion["category"] | "all";
-type PaletteCategory = "samus" | "environment" | "beams";
+type PaletteCategory = "samus" | "environment" | "beams" | "bosses";
 
 interface CachedTileset {
   info: TilesetInfo;
@@ -38,13 +38,14 @@ interface CategoryEffects {
   samus: Set<string>;
   environment: Set<string>;
   beams: Set<string>;
+  bosses: Set<string>;
 }
 
 /** Individual color overrides: key = "regionId:colorIndex" or "tileset:pcOffset:colorIndex" */
 type ColorOverrides = Map<string, number>; // BGR555 value
 
 function emptyCategoryEffects(): CategoryEffects {
-  return { samus: new Set(), environment: new Set(), beams: new Set() };
+  return { samus: new Set(), environment: new Set(), beams: new Set(), bosses: new Set() };
 }
 
 function App() {
@@ -77,9 +78,9 @@ function App() {
     const states = new Map<string, "active" | "partial" | "inactive">();
     for (const effect of EFFECTS) {
       if (selectedCategory === "all") {
-        const cats: PaletteCategory[] = ["samus", "environment", "beams"];
+        const cats: PaletteCategory[] = ["samus", "environment", "beams", "bosses"];
         const count = cats.filter(c => categoryEffects[c].has(effect.id)).length;
-        if (count === 3) states.set(effect.id, "active");
+        if (count === cats.length) states.set(effect.id, "active");
         else if (count > 0) states.set(effect.id, "partial");
         else states.set(effect.id, "inactive");
       } else {
@@ -145,11 +146,12 @@ function App() {
           samus: new Set(prev.samus),
           environment: new Set(prev.environment),
           beams: new Set(prev.beams),
+          bosses: new Set(prev.bosses),
         };
         if (selectedCategory === "all") {
           // In "Everything" mode, toggle for all categories
-          const allHave = next.samus.has(effect.id) && next.environment.has(effect.id) && next.beams.has(effect.id);
-          for (const cat of ["samus", "environment", "beams"] as const) {
+          const allHave = next.samus.has(effect.id) && next.environment.has(effect.id) && next.beams.has(effect.id) && next.bosses.has(effect.id);
+          for (const cat of ["samus", "environment", "beams", "bosses"] as const) {
             if (allHave) next[cat].delete(effect.id);
             else next[cat].add(effect.id);
           }
@@ -331,84 +333,23 @@ function App() {
         </>
       )}
 
-      <ColorPickerPortal />
     </div>
   );
 }
 
-// ─── Color Picker ──────────────────────────────────────────────────────────
-
-interface PickerState {
-  key: string;
-  bgr555: number;
-  x: number;
-  y: number;
-}
-
-let globalPickerState: PickerState | null = null;
-let globalPickerCallback: ((key: string, bgr555: number) => void) | null = null;
-let globalPickerNotify: (() => void) | null = null;
-
-function openPicker(key: string, bgr555: number, x: number, y: number, onCommit: (key: string, bgr555: number) => void) {
-  globalPickerState = { key, bgr555, x, y };
-  globalPickerCallback = onCommit;
-  globalPickerNotify?.();
-}
-
-function ColorPickerPortal() {
-  const [, setTick] = useState(0);
-  const [liveColor, setLiveColor] = useState("#000000");
-
-  useEffect(() => {
-    globalPickerNotify = () => {
-      setTick(t => t + 1);
-      if (globalPickerState) {
-        const { r, g, b } = bgr555ToRgb(globalPickerState.bgr555);
-        setLiveColor(`#${rgb5to8(r).toString(16).padStart(2, "0")}${rgb5to8(g).toString(16).padStart(2, "0")}${rgb5to8(b).toString(16).padStart(2, "0")}`);
-      }
-    };
-    return () => { globalPickerNotify = null; };
-  }, []);
-
-  const state = globalPickerState;
-  if (!state) return null;
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const hex = e.target.value;
-    setLiveColor(hex);
-    const rr = parseInt(hex.slice(1, 3), 16);
-    const gg = parseInt(hex.slice(3, 5), 16);
-    const bb = parseInt(hex.slice(5, 7), 16);
-    // Convert 8-bit to 5-bit
-    const r5 = Math.round(rr * 31 / 255);
-    const g5 = Math.round(gg * 31 / 255);
-    const b5 = Math.round(bb * 31 / 255);
-    const bgr555 = rgbToBgr555(r5, g5, b5);
-    globalPickerCallback?.(state.key, bgr555);
-  };
-
-  const handleClose = () => {
-    globalPickerState = null;
-    globalPickerCallback = null;
-    setTick(t => t + 1);
-  };
-
-  return (
-    <>
-      <div className="picker-backdrop" onClick={handleClose} />
-      <div className="picker-popup" style={{ left: state.x, top: state.y }}>
-        <div className="picker-header">
-          <span>Edit Color</span>
-          <button className="picker-close" onClick={handleClose}>&times;</button>
-        </div>
-        <input type="color" value={liveColor} onChange={handleChange} className="picker-input" />
-        <div className="picker-hex">{liveColor.toUpperCase()}</div>
-      </div>
-    </>
-  );
-}
-
 // ─── Swatch Component ──────────────────────────────────────────────────────
+
+function bgr555ToHex(bgr555: number): string {
+  const { r, g, b } = bgr555ToRgb(bgr555);
+  return `#${rgb5to8(r).toString(16).padStart(2, "0")}${rgb5to8(g).toString(16).padStart(2, "0")}${rgb5to8(b).toString(16).padStart(2, "0")}`;
+}
+
+function hexToBgr555(hex: string): number {
+  const rr = parseInt(hex.slice(1, 3), 16);
+  const gg = parseInt(hex.slice(3, 5), 16);
+  const bb = parseInt(hex.slice(5, 7), 16);
+  return rgbToBgr555(Math.round(rr * 31 / 255), Math.round(gg * 31 / 255), Math.round(bb * 31 / 255));
+}
 
 function Swatch({ color, overrideKey, colorOverrides, onColorOverride }: {
   color: number;
@@ -416,13 +357,20 @@ function Swatch({ color, overrideKey, colorOverrides, onColorOverride }: {
   colorOverrides: ColorOverrides;
   onColorOverride: (key: string, bgr555: number) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const effectiveColor = colorOverrides.get(overrideKey) ?? color;
   const { r, g, b } = bgr555ToRgb(effectiveColor);
   const isOverridden = colorOverrides.has(overrideKey);
 
-  const handleClick = (e: React.MouseEvent) => {
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    openPicker(overrideKey, effectiveColor, rect.left, rect.bottom + 4, onColorOverride);
+  const handleClick = () => {
+    if (inputRef.current) {
+      inputRef.current.value = bgr555ToHex(effectiveColor);
+      inputRef.current.click();
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onColorOverride(overrideKey, hexToBgr555(e.target.value));
   };
 
   return (
@@ -430,8 +378,11 @@ function Swatch({ color, overrideKey, colorOverrides, onColorOverride }: {
       className={`swatch clickable ${isOverridden ? "overridden" : ""}`}
       style={{ backgroundColor: effectiveColor === 0 && !isOverridden ? "#111" : rgbToCss(r, g, b) }}
       onClick={handleClick}
-      title={`${overrideKey} — Click to edit`}
-    />
+      title="Click to edit color"
+    >
+      <input ref={inputRef} type="color" className="swatch-picker"
+        onChange={handleChange} tabIndex={-1} />
+    </div>
   );
 }
 
