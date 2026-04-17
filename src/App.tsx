@@ -434,39 +434,84 @@ function hexToBgr555(hex: string): number {
   return rgbToBgr555(Math.round(rr * 31 / 255), Math.round(gg * 31 / 255), Math.round(bb * 31 / 255));
 }
 
-function Swatch({ color, overrideKey, colorOverrides, onColorOverride }: {
+function Swatch({ color, overrideColor, overrideKey, onColorOverride }: {
   color: number;
+  overrideColor: number | undefined;
   overrideKey: string;
-  colorOverrides: ColorOverrides;
   onColorOverride: (key: string, bgr555: number) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const effectiveColor = colorOverrides.get(overrideKey) ?? color;
+  const [open, setOpen] = useState(false);
+  const effectiveColor = overrideColor ?? color;
   const { r, g, b } = bgr555ToRgb(effectiveColor);
-  const isOverridden = colorOverrides.has(overrideKey);
 
   const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Don't trigger card select
-    if (inputRef.current) {
-      inputRef.current.value = bgr555ToHex(effectiveColor);
-      inputRef.current.click();
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onColorOverride(overrideKey, hexToBgr555(e.target.value));
+    e.stopPropagation();
+    setOpen(prev => !prev);
   };
 
   return (
     <div
-      className={`swatch clickable ${isOverridden ? "overridden" : ""}`}
-      style={{ backgroundColor: effectiveColor === 0 && !isOverridden ? "#111" : rgbToCss(r, g, b) }}
+      className={`swatch clickable ${overrideColor !== undefined ? "overridden" : ""}`}
+      style={{ backgroundColor: effectiveColor === 0 && overrideColor === undefined ? "#111" : rgbToCss(r, g, b) }}
       onClick={handleClick}
       title="Click to edit color"
     >
-      <input ref={inputRef} type="color" className="swatch-picker"
-        onChange={handleChange} tabIndex={-1} />
+      {open && (
+        <ColorPopover r={r} g={g} b={b}
+          onClose={() => setOpen(false)}
+          onChange={(nr, ng, nb) => onColorOverride(overrideKey, rgbToBgr555(nr, ng, nb))} />
+      )}
     </div>
+  );
+}
+
+function ColorPopover({ r, g, b, onClose, onChange }: {
+  r: number; g: number; b: number;
+  onClose: () => void;
+  onChange: (r: number, g: number, b: number) => void;
+}) {
+  const hex = `#${rgb5to8(r).toString(16).padStart(2, "0")}${rgb5to8(g).toString(16).padStart(2, "0")}${rgb5to8(b).toString(16).padStart(2, "0")}`.toUpperCase();
+
+  const handleHex = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+      const rr = Math.round(parseInt(val.slice(1, 3), 16) * 31 / 255);
+      const gg = Math.round(parseInt(val.slice(3, 5), 16) * 31 / 255);
+      const bb = Math.round(parseInt(val.slice(5, 7), 16) * 31 / 255);
+      onChange(rr, gg, bb);
+    }
+  };
+
+  return (
+    <>
+      <div className="picker-backdrop" onClick={e => { e.stopPropagation(); onClose(); }} />
+      <div className="picker-popover" onClick={e => e.stopPropagation()}>
+        <div className="picker-preview" style={{ backgroundColor: rgbToCss(r, g, b) }} />
+        <div className="picker-channel">
+          <label>R</label>
+          <input type="range" min={0} max={31} value={r}
+            onChange={e => onChange(+e.target.value, g, b)}
+            className="picker-slider picker-slider-r" />
+          <span className="picker-val">{r}</span>
+        </div>
+        <div className="picker-channel">
+          <label>G</label>
+          <input type="range" min={0} max={31} value={g}
+            onChange={e => onChange(r, +e.target.value, b)}
+            className="picker-slider picker-slider-g" />
+          <span className="picker-val">{g}</span>
+        </div>
+        <div className="picker-channel">
+          <label>B</label>
+          <input type="range" min={0} max={31} value={b}
+            onChange={e => onChange(r, g, +e.target.value)}
+            className="picker-slider picker-slider-b" />
+          <span className="picker-val">{b}</span>
+        </div>
+        <input type="text" value={hex} onChange={handleHex}
+          className="picker-hex" spellCheck={false} />
+      </div>
+    </>
   );
 }
 
@@ -497,12 +542,15 @@ const PalettePreview = memo(function PalettePreview({ region, origColors, active
       onClick={handleCardClick}>
       <h4>{region.name}</h4>
       <div className="swatches">
-        {previewColors.map((c, i) => (
-          <Swatch key={i} color={c}
-            overrideKey={`${region.id}:${i}`}
-            colorOverrides={colorOverrides}
-            onColorOverride={onColorOverride} />
-        ))}
+        {previewColors.map((c, i) => {
+          const key = `${region.id}:${i}`;
+          return (
+            <Swatch key={i} color={c}
+              overrideColor={colorOverrides.get(key)}
+              overrideKey={key}
+              onColorOverride={onColorOverride} />
+          );
+        })}
       </div>
     </div>
   );
@@ -540,12 +588,15 @@ const TilesetPreview = memo(function TilesetPreview({ cached, activeEffects, col
       <h4>{cached.info.name}</h4>
       {rows.map((row, ri) => (
         <div key={ri} className="swatches">
-          {row.map((c, i) => (
-            <Swatch key={i} color={c}
-              overrideKey={`tileset:${cached.info.palettePcOffset}:${ri * 16 + i}`}
-              colorOverrides={colorOverrides}
-              onColorOverride={onColorOverride} />
-          ))}
+          {row.map((c, i) => {
+            const key = `tileset:${cached.info.palettePcOffset}:${ri * 16 + i}`;
+            return (
+              <Swatch key={i} color={c}
+                overrideColor={colorOverrides.get(key)}
+                overrideKey={key}
+                onColorOverride={onColorOverride} />
+            );
+          })}
         </div>
       ))}
     </div>
