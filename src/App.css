@@ -156,19 +156,11 @@ section h3 {
   color: var(--accent);
 }
 
-/* Effect Groups */
-.effect-group { margin-bottom: 16px; }
-.effect-group h4 {
-  font-size: 12px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 8px;
-}
+/* Effects Grid */
 .effects-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .effect-btn {
   font-family: inherit;
@@ -210,6 +202,23 @@ section h3 {
   text-transform: none;
   letter-spacing: 0;
 }
+.btn-clear-scope {
+  font-family: inherit;
+  font-size: 11px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-dim);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.btn-clear-scope:hover {
+  color: var(--text-bright);
+  border-color: var(--text-dim);
+}
 
 /* Palette Preview */
 .preview-grid {
@@ -222,6 +231,21 @@ section h3 {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.palette-card:hover {
+  border-color: var(--text-dim);
+}
+.palette-card.selected {
+  border-color: var(--accent);
+  background: rgba(74, 158, 255, 0.08);
+}
+.palette-card.has-override {
+  border-color: var(--purple);
+}
+.palette-card.has-override.selected {
+  border-color: var(--accent);
 }
 .palette-card h4 {
   font-size: 11px;

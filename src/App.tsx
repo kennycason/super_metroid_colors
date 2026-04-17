@@ -44,6 +44,13 @@ interface CategoryEffects {
 /** Individual color overrides: key = "regionId:colorIndex" or "tileset:pcOffset:colorIndex" */
 type ColorOverrides = Map<string, number>; // BGR555 value
 
+/**
+ * Per-region effect overrides.
+ * Key = region ID or "tileset:pcOffset", value = Set of effect IDs.
+ * When present, these override the category-level effects for that specific region.
+ */
+type RegionEffectOverrides = Map<string, Set<string>>;
+
 function emptyCategoryEffects(): CategoryEffects {
   return { samus: new Set(), environment: new Set(), beams: new Set(), bosses: new Set() };
 }
@@ -55,6 +62,8 @@ function App() {
   const [selectedCategory, setSelectedCategory] = useState<Category>("all");
   const [categoryEffects, setCategoryEffects] = useState<CategoryEffects>(emptyCategoryEffects);
   const [colorOverrides, setColorOverrides] = useState<ColorOverrides>(new Map());
+  const [regionEffectOverrides, setRegionEffectOverrides] = useState<RegionEffectOverrides>(new Map());
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null); // region key for per-region override
   const [romName, setRomName] = useState("super_metroid.smc");
   const [cachedTilesets, setCachedTilesets] = useState<CachedTileset[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -68,14 +77,26 @@ function App() {
     return all.size;
   }, [categoryEffects]);
 
-  /** Get the active effects for the current view category */
-  const activeEffectsForCategory = useCallback((cat: PaletteCategory): Set<string> => {
-    return categoryEffects[cat];
-  }, [categoryEffects]);
+  const hasAnyChanges = totalActiveCount > 0 || colorOverrides.size > 0 || regionEffectOverrides.size > 0;
+
+  /** Get the effective effects for a region: region override > category-level */
+  const getEffectsForRegion = (regionKey: string, category: PaletteCategory): Set<string> => {
+    return regionEffectOverrides.get(regionKey) ?? categoryEffects[category];
+  };
 
   /** Compute which effect buttons should appear active in the current view */
   const effectButtonStates = useMemo(() => {
     const states = new Map<string, "active" | "partial" | "inactive">();
+
+    // If a specific region is selected, show that region's effects
+    if (selectedRegion) {
+      const overrides = regionEffectOverrides.get(selectedRegion);
+      for (const effect of EFFECTS) {
+        states.set(effect.id, overrides?.has(effect.id) ? "active" : "inactive");
+      }
+      return states;
+    }
+
     for (const effect of EFFECTS) {
       if (selectedCategory === "all") {
         const cats: PaletteCategory[] = ["samus", "environment", "beams", "bosses"];
@@ -89,7 +110,7 @@ function App() {
       }
     }
     return states;
-  }, [selectedCategory, categoryEffects]);
+  }, [selectedCategory, categoryEffects, selectedRegion, regionEffectOverrides]);
 
   /** Decompress all unique tileset palettes and cache them. */
   const cacheTilesets = useCallback((rom: Uint8Array) => {
@@ -110,9 +131,10 @@ function App() {
   useEffect(() => {
     loadRomFromStorage().then(saved => {
       if (saved) {
-        romRef.current = saved;
+        romRef.current = saved.rom;
         setRomLoaded(true);
-        cacheTilesets(saved);
+        setRomName(saved.name);
+        cacheTilesets(saved.rom);
       }
     });
   }, [cacheTilesets]);
@@ -131,9 +153,11 @@ function App() {
         setRomLoaded(true);
         setCategoryEffects(emptyCategoryEffects());
         setColorOverrides(new Map());
+        setRegionEffectOverrides(new Map());
+        setSelectedRegion(null);
         setRomName(file.name);
         cacheTilesets(rom);
-        saveRomToStorage(rom);
+        saveRomToStorage(rom, file.name);
       };
       reader.readAsArrayBuffer(file);
     }, [cacheTilesets],
@@ -141,6 +165,21 @@ function App() {
 
   const handleToggleEffect = useCallback((effect: PaletteEffect) => {
     startTransition(() => {
+      // If a region is selected, toggle for that region's override
+      if (selectedRegion) {
+        setRegionEffectOverrides(prev => {
+          const next = new Map(prev);
+          const existing = next.get(selectedRegion);
+          const set = existing ? new Set(existing) : new Set<string>();
+          if (set.has(effect.id)) set.delete(effect.id);
+          else set.add(effect.id);
+          if (set.size === 0) next.delete(selectedRegion);
+          else next.set(selectedRegion, set);
+          return next;
+        });
+        return;
+      }
+
       setCategoryEffects(prev => {
         const next = {
           samus: new Set(prev.samus),
@@ -149,7 +188,6 @@ function App() {
           bosses: new Set(prev.bosses),
         };
         if (selectedCategory === "all") {
-          // In "Everything" mode, toggle for all categories
           const allHave = next.samus.has(effect.id) && next.environment.has(effect.id) && next.beams.has(effect.id) && next.bosses.has(effect.id);
           for (const cat of ["samus", "environment", "beams", "bosses"] as const) {
             if (allHave) next[cat].delete(effect.id);
@@ -163,11 +201,13 @@ function App() {
         return next;
       });
     });
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedRegion]);
 
   const handleReset = useCallback(() => {
     setCategoryEffects(emptyCategoryEffects());
     setColorOverrides(new Map());
+    setRegionEffectOverrides(new Map());
+    setSelectedRegion(null);
   }, []);
 
   const handleColorOverride = useCallback((key: string, bgr555: number) => {
@@ -176,6 +216,10 @@ function App() {
       next.set(key, bgr555);
       return next;
     });
+  }, []);
+
+  const handleSelectRegion = useCallback((regionKey: string | null) => {
+    setSelectedRegion(prev => prev === regionKey ? null : regionKey);
   }, []);
 
   const handleDownload = useCallback(() => {
@@ -187,8 +231,10 @@ function App() {
     for (const region of REGIONS) {
       const offset = region.offset + hdr;
       if (offset + region.colorCount * 2 > patched.length) continue;
-      const effects = categoryEffects[region.category];
-      const effectFns = [...effects]
+
+      // Use region override if present, otherwise category-level
+      const effectIds = regionEffectOverrides.get(region.id) ?? categoryEffects[region.category];
+      const effectFns = [...effectIds]
         .map(id => EFFECTS.find(e => e.id === id))
         .filter((e): e is PaletteEffect => !!e)
         .map(e => e.apply);
@@ -199,7 +245,7 @@ function App() {
 
     // Apply color overrides for uncompressed regions
     for (const [key, bgr555] of colorOverrides) {
-      if (key.startsWith("tileset:")) continue; // handled below
+      if (key.startsWith("tileset:")) continue;
       const [regionId, idxStr] = key.split(":");
       const region = REGIONS.find(r => r.id === regionId);
       if (!region) continue;
@@ -213,10 +259,10 @@ function App() {
       .map(id => EFFECTS.find(e => e.id === id))
       .filter((e): e is PaletteEffect => !!e)
       .map(e => e.apply);
-    patched = patchTilesetPalettes(patched, envEffectFns, colorOverrides);
+    patched = patchTilesetPalettes(patched, envEffectFns, colorOverrides, regionEffectOverrides);
 
-    downloadRom(patched, romName.replace(/\.\w+$/, "") + "_colors.smc");
-  }, [categoryEffects, colorOverrides, romName]);
+    downloadRom(patched, romName.replace(/\.\w+$/, "") + " Colors.smc");
+  }, [categoryEffects, colorOverrides, regionEffectOverrides, romName]);
 
   const handleClearRom = useCallback(() => {
     clearRomFromStorage();
@@ -224,6 +270,8 @@ function App() {
     setRomLoaded(false);
     setCategoryEffects(emptyCategoryEffects());
     setColorOverrides(new Map());
+    setRegionEffectOverrides(new Map());
+    setSelectedRegion(null);
     setCachedTilesets([]);
     setError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -234,7 +282,35 @@ function App() {
     [selectedCategory],
   );
 
+  /** Pre-extract palette colors from ROM so we never pass the 3MB ROM as a prop */
+  const regionColors = useMemo(() => {
+    const rom = romRef.current;
+    if (!rom) return new Map<string, number[]>();
+    const hdr = headerOffset(rom);
+    const map = new Map<string, number[]>();
+    for (const region of REGIONS) {
+      const offset = region.offset + hdr;
+      const count = Math.min(region.colorCount, 16);
+      if (offset + count * 2 <= rom.length) {
+        map.set(region.id, readPalette(rom, offset, count));
+      }
+    }
+    return map;
+  }, [romLoaded]);
+
   const showTilesets = selectedCategory === "all" || selectedCategory === "environment";
+
+  // Determine scope label for the effects header
+  const scopeLabel = selectedRegion
+    ? (() => {
+        // Find a display name for the selected region
+        const region = REGIONS.find(r => r.id === selectedRegion);
+        if (region) return region.name;
+        const ts = cachedTilesets.find(ct => `tileset:${ct.info.palettePcOffset}` === selectedRegion);
+        if (ts) return ts.info.name;
+        return selectedRegion;
+      })()
+    : selectedCategory !== "all" ? selectedCategory : null;
 
   return (
     <div className="app">
@@ -258,12 +334,10 @@ function App() {
           <section className="rom-info">
             <span>ROM: <strong>{romName}</strong> ({((romRef.current?.length ?? 0) / 1024).toFixed(0)} KB)</span>
             <div className="rom-actions">
-              <button onClick={handleReset} className="btn btn-secondary"
-                disabled={totalActiveCount === 0 && colorOverrides.size === 0}>
+              <button onClick={handleReset} className="btn btn-secondary" disabled={!hasAnyChanges}>
                 Reset
               </button>
-              <button onClick={handleDownload} className="btn btn-primary"
-                disabled={totalActiveCount === 0 && colorOverrides.size === 0}>
+              <button onClick={handleDownload} className="btn btn-primary" disabled={!hasAnyChanges}>
                 Download Patched ROM
               </button>
               <button onClick={handleClearRom} className="btn btn-danger">Unload ROM</button>
@@ -275,8 +349,8 @@ function App() {
             <div className="pills">
               {CATEGORIES.map(cat => (
                 <button key={cat.id}
-                  className={`pill ${selectedCategory === cat.id ? "active" : ""}`}
-                  onClick={() => startTransition(() => setSelectedCategory(cat.id))}>
+                  className={`pill ${selectedCategory === cat.id && !selectedRegion ? "active" : ""}`}
+                  onClick={() => { startTransition(() => setSelectedCategory(cat.id)); setSelectedRegion(null); }}>
                   {cat.name}
                 </button>
               ))}
@@ -287,52 +361,61 @@ function App() {
             <h3>
               Effects
               {totalActiveCount > 0 && <span className="effect-count"> ({totalActiveCount} active)</span>}
-              {selectedCategory !== "all" && (
-                <span className="effect-scope"> &mdash; applying to {selectedCategory}</span>
+              {scopeLabel && (
+                <span className="effect-scope"> &mdash; {selectedRegion ? `${scopeLabel} only` : `applying to ${scopeLabel}`}</span>
+              )}
+              {selectedRegion && (
+                <button className="btn-clear-scope" onClick={() => setSelectedRegion(null)}>clear</button>
               )}
             </h3>
-            {(["classic", "tint", "wild", "aesthetic"] as const).map(category => {
-              const effects = EFFECTS.filter(e => e.category === category);
-              return (
-                <div key={category} className="effect-group">
-                  <h4>{category.charAt(0).toUpperCase() + category.slice(1)}</h4>
-                  <div className="effects-grid">
-                    {effects.map(effect => {
-                      const state = effectButtonStates.get(effect.id) ?? "inactive";
-                      return (
-                        <button key={effect.id}
-                          className={`effect-btn ${state}`}
-                          onClick={() => handleToggleEffect(effect)}>
-                          {effect.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+            <div className="effects-grid">
+              {EFFECTS.map(effect => {
+                const state = effectButtonStates.get(effect.id) ?? "inactive";
+                return (
+                  <button key={effect.id}
+                    className={`effect-btn ${state}`}
+                    onClick={() => handleToggleEffect(effect)}>
+                    {effect.name}
+                  </button>
+                );
+              })}
+            </div>
           </section>
 
           <section className="preview-section">
             <div className="preview-grid">
-              {visibleRegions.map(region => (
-                <PalettePreview key={region.id} region={region}
-                  rom={romRef.current!}
-                  activeEffects={activeEffectsForCategory(region.category)}
-                  colorOverrides={colorOverrides}
-                  onColorOverride={handleColorOverride} />
-              ))}
-              {showTilesets && cachedTilesets.map(ct => (
-                <TilesetPreview key={`ts_${ct.info.index}`} cached={ct}
-                  activeEffects={activeEffectsForCategory("environment")}
-                  colorOverrides={colorOverrides}
-                  onColorOverride={handleColorOverride} />
-              ))}
+              {visibleRegions.map(region => {
+                const colors = regionColors.get(region.id);
+                if (!colors) return null;
+                return (
+                  <PalettePreview key={region.id} region={region}
+                    origColors={colors}
+                    activeEffects={getEffectsForRegion(region.id, region.category)}
+                    colorOverrides={colorOverrides}
+                    onColorOverride={handleColorOverride}
+                    isSelected={selectedRegion === region.id}
+                    hasOverride={regionEffectOverrides.has(region.id)}
+                    regionKey={region.id}
+                    onSelect={handleSelectRegion} />
+                );
+              })}
+              {showTilesets && cachedTilesets.map(ct => {
+                const tsKey = `tileset:${ct.info.palettePcOffset}`;
+                return (
+                  <TilesetPreview key={`ts_${ct.info.index}`} cached={ct}
+                    activeEffects={getEffectsForRegion(tsKey, "environment")}
+                    colorOverrides={colorOverrides}
+                    onColorOverride={handleColorOverride}
+                    isSelected={selectedRegion === tsKey}
+                    hasOverride={regionEffectOverrides.has(tsKey)}
+                    regionKey={tsKey}
+                    onSelect={handleSelectRegion} />
+                );
+              })}
             </div>
           </section>
         </>
       )}
-
     </div>
   );
 }
@@ -362,7 +445,8 @@ function Swatch({ color, overrideKey, colorOverrides, onColorOverride }: {
   const { r, g, b } = bgr555ToRgb(effectiveColor);
   const isOverridden = colorOverrides.has(overrideKey);
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't trigger card select
     if (inputRef.current) {
       inputRef.current.value = bgr555ToHex(effectiveColor);
       inputRef.current.click();
@@ -388,16 +472,12 @@ function Swatch({ color, overrideKey, colorOverrides, onColorOverride }: {
 
 // ─── Palette Previews ──────────────────────────────────────────────────────
 
-const PalettePreview = memo(function PalettePreview({ region, rom, activeEffects, colorOverrides, onColorOverride }: {
-  region: PaletteRegion; rom: Uint8Array; activeEffects: Set<string>;
+const PalettePreview = memo(function PalettePreview({ region, origColors, activeEffects, colorOverrides, onColorOverride, isSelected, hasOverride, regionKey, onSelect }: {
+  region: PaletteRegion; origColors: number[]; activeEffects: Set<string>;
   colorOverrides: ColorOverrides; onColorOverride: (key: string, bgr555: number) => void;
+  isSelected: boolean; hasOverride: boolean; regionKey: string; onSelect: (key: string | null) => void;
 }) {
-  const hdr = headerOffset(rom);
-  const offset = region.offset + hdr;
-  const previewCount = Math.min(region.colorCount, 16);
-  if (offset + previewCount * 2 > rom.length) return null;
-
-  const origColors = readPalette(rom, offset, previewCount);
+  const previewCount = origColors.length;
 
   let previewColors = origColors;
   if (activeEffects.size > 0) {
@@ -410,8 +490,11 @@ const PalettePreview = memo(function PalettePreview({ region, rom, activeEffects
     previewColors = readPalette(buf, 0, previewCount);
   }
 
+  const handleCardClick = useCallback(() => onSelect(isSelected ? null : regionKey), [onSelect, isSelected, regionKey]);
+
   return (
-    <div className="palette-card">
+    <div className={`palette-card ${isSelected ? "selected" : ""} ${hasOverride ? "has-override" : ""}`}
+      onClick={handleCardClick}>
       <h4>{region.name}</h4>
       <div className="swatches">
         {previewColors.map((c, i) => (
@@ -425,9 +508,10 @@ const PalettePreview = memo(function PalettePreview({ region, rom, activeEffects
   );
 });
 
-const TilesetPreview = memo(function TilesetPreview({ cached, activeEffects, colorOverrides, onColorOverride }: {
+const TilesetPreview = memo(function TilesetPreview({ cached, activeEffects, colorOverrides, onColorOverride, isSelected, hasOverride, regionKey, onSelect }: {
   cached: CachedTileset; activeEffects: Set<string>;
   colorOverrides: ColorOverrides; onColorOverride: (key: string, bgr555: number) => void;
+  isSelected: boolean; hasOverride: boolean; regionKey: string; onSelect: (key: string | null) => void;
 }) {
   const totalColors = 128; // 8 sub-palettes x 16 colors
   const origColors = readPalette(cached.palette, 0, totalColors);
@@ -448,8 +532,11 @@ const TilesetPreview = memo(function TilesetPreview({ cached, activeEffects, col
     rows.push(Array.from(previewColors.slice(r * 16, r * 16 + 16)));
   }
 
+  const handleCardClick = useCallback(() => onSelect(isSelected ? null : regionKey), [onSelect, isSelected, regionKey]);
+
   return (
-    <div className="palette-card">
+    <div className={`palette-card ${isSelected ? "selected" : ""} ${hasOverride ? "has-override" : ""}`}
+      onClick={handleCardClick}>
       <h4>{cached.info.name}</h4>
       {rows.map((row, ri) => (
         <div key={ri} className="swatches">

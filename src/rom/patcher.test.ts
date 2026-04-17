@@ -472,3 +472,118 @@ describe("all effects produce valid BGR555 output", () => {
     });
   }
 });
+
+describe("new effects behavior", () => {
+  function makeTestBuf(colors: number[]): Uint8Array {
+    const buf = new Uint8Array(colors.length * 2);
+    writePalette(buf, 0, colors);
+    return buf;
+  }
+
+  it("rainbow assigns distinct hues across palette", () => {
+    const effect = EFFECTS.find(e => e.id === "rainbow")!;
+    // White colors with different brightnesses
+    const colors = [0, 0x7fff, 0x5294, 0x318c, 0x1084];
+    const buf = makeTestBuf(colors);
+    effect.apply(buf, 0, colors.length);
+    const result = readPalette(buf, 0, colors.length);
+    // Index 0 stays transparent
+    expect(result[0]).toBe(0);
+    // Other colors should be different from each other (different hues)
+    const unique = new Set(result.filter(c => c !== 0));
+    expect(unique.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("cyberpunk produces high-contrast neon colors", () => {
+    const effect = EFFECTS.find(e => e.id === "cyberpunk")!;
+    const colors = [0, 0x7fff, 0x0421]; // transparent, white, dark gray
+    const buf = makeTestBuf(colors);
+    effect.apply(buf, 0, colors.length);
+    const result = readPalette(buf, 0, colors.length);
+    expect(result[0]).toBe(0);
+    // White (high lum) should have strong red + blue components
+    const bright = bgr555ToRgb(result[1]);
+    expect(bright.r).toBe(31); // bright pixels get max red
+  });
+
+  it("complementary shifts hue by 180 degrees", () => {
+    const effect = EFFECTS.find(e => e.id === "complementary")!;
+    // Pure red in BGR555: r=31, g=0, b=0
+    const pureRed = rgbToBgr555(31, 0, 0);
+    const buf = makeTestBuf([0, pureRed]);
+    effect.apply(buf, 0, 2);
+    const result = readPalette(buf, 0, 2);
+    // Complementary of red should be cyan-ish (high green + blue)
+    const comp = bgr555ToRgb(result[1]);
+    expect(comp.g).toBeGreaterThan(15);
+    expect(comp.b).toBeGreaterThan(15);
+    expect(comp.r).toBeLessThan(10);
+  });
+
+  it("thermal maps luminance to heat colors", () => {
+    const effect = EFFECTS.find(e => e.id === "thermal")!;
+    // Dark color -> should be blue-ish
+    const dark = rgbToBgr555(2, 2, 2);
+    // Bright color -> should be yellow/white
+    const bright = rgbToBgr555(28, 28, 28);
+    const buf = makeTestBuf([0, dark, bright]);
+    effect.apply(buf, 0, 3);
+    const result = readPalette(buf, 0, 3);
+    const darkResult = bgr555ToRgb(result[1]);
+    const brightResult = bgr555ToRgb(result[2]);
+    // Dark should be blue-dominant
+    expect(darkResult.b).toBeGreaterThan(darkResult.r);
+    // Bright should have high red
+    expect(brightResult.r).toBe(31);
+  });
+
+  it("acid maximizes saturation", () => {
+    const effect = EFFECTS.find(e => e.id === "acid")!;
+    const muted = rgbToBgr555(15, 12, 10); // desaturated brownish
+    const buf = makeTestBuf([0, muted]);
+    effect.apply(buf, 0, 2);
+    const result = readPalette(buf, 0, 2);
+    const hsv = rgbToHsv(...Object.values(bgr555ToRgb(result[1])) as [number, number, number]);
+    // Saturation should be maxed out
+    expect(hsv.s).toBeCloseTo(1.0, 1);
+  });
+
+  it("ghost transparency zeroes some colors deterministically", () => {
+    const effect = EFFECTS.find(e => e.id === "ghost50")!;
+    // Use 16 non-zero colors
+    const colors = Array.from({ length: 16 }, (_, i) => rgbToBgr555(i + 1, i + 1, i + 1));
+    const buf1 = makeTestBuf(colors);
+    const buf2 = makeTestBuf(colors);
+    effect.apply(buf1, 0, 16);
+    effect.apply(buf2, 0, 16);
+    const r1 = readPalette(buf1, 0, 16);
+    const r2 = readPalette(buf2, 0, 16);
+    // Should be deterministic (same input → same output)
+    expect(r1).toEqual(r2);
+    // Should have some zeros and some non-zeros
+    const zeros = r1.filter(c => c === 0).length;
+    expect(zeros).toBeGreaterThan(0);
+    expect(zeros).toBeLessThan(16);
+  });
+
+  it("hologram produces varied hues based on index", () => {
+    const effect = EFFECTS.find(e => e.id === "hologram")!;
+    const colors = [0, 0x7fff, 0x5294, 0x318c, 0x1084, 0x7fff, 0x5294, 0x318c];
+    const buf = makeTestBuf(colors);
+    effect.apply(buf, 0, colors.length);
+    const result = readPalette(buf, 0, colors.length);
+    // Same brightness colors at different indices should have different hues
+    expect(result[1]).not.toBe(result[5]); // same color at index 1 vs 5
+  });
+
+  it("triadic shifts hue by 120 degrees", () => {
+    const effect = EFFECTS.find(e => e.id === "triadic")!;
+    const pureRed = rgbToBgr555(31, 0, 0);
+    const buf = makeTestBuf([0, pureRed]);
+    effect.apply(buf, 0, 2);
+    const result = readPalette(buf, 0, 2);
+    const shifted = bgr555ToRgb(result[1]);
+    // 120 degrees from red should be green-ish
+    expect(shifted.g).toBeGreaterThan(shifted.r);
+  });
+});

@@ -7,6 +7,7 @@ import { headerOffset } from "./palette";
 const DB_NAME = "sm_colors";
 const DB_STORE = "rom";
 const ROM_KEY = "sm_colors_rom";
+const ROM_NAME_KEY = "sm_colors_rom_name";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -17,11 +18,13 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveRomToStorage(rom: Uint8Array) {
+export async function saveRomToStorage(rom: Uint8Array, romName?: string) {
   try {
     const db = await openDB();
     const tx = db.transaction(DB_STORE, "readwrite");
-    tx.objectStore(DB_STORE).put(rom, ROM_KEY);
+    const store = tx.objectStore(DB_STORE);
+    store.put(rom, ROM_KEY);
+    if (romName) store.put(romName, ROM_NAME_KEY);
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
@@ -32,7 +35,7 @@ export async function saveRomToStorage(rom: Uint8Array) {
   }
 }
 
-export async function loadRomFromStorage(): Promise<Uint8Array | null> {
+export async function loadRomFromStorage(): Promise<{ rom: Uint8Array; name: string } | null> {
   // Clean up old localStorage-based ROM data (base64-encoded, blocks main thread on load)
   try {
     for (const key of Object.keys(localStorage)) {
@@ -45,13 +48,22 @@ export async function loadRomFromStorage(): Promise<Uint8Array | null> {
   try {
     const db = await openDB();
     const tx = db.transaction(DB_STORE, "readonly");
-    const req = tx.objectStore(DB_STORE).get(ROM_KEY);
-    const result = await new Promise<Uint8Array | null>((resolve, reject) => {
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => reject(req.error);
-    });
+    const store = tx.objectStore(DB_STORE);
+    const romReq = store.get(ROM_KEY);
+    const nameReq = store.get(ROM_NAME_KEY);
+    const [rom, name] = await Promise.all([
+      new Promise<Uint8Array | null>((resolve, reject) => {
+        romReq.onsuccess = () => resolve(romReq.result ?? null);
+        romReq.onerror = () => reject(romReq.error);
+      }),
+      new Promise<string | null>((resolve, reject) => {
+        nameReq.onsuccess = () => resolve(nameReq.result ?? null);
+        nameReq.onerror = () => reject(nameReq.error);
+      }),
+    ]);
     db.close();
-    return result;
+    if (!rom) return null;
+    return { rom, name: name ?? "super_metroid.smc" };
   } catch {
     return null;
   }

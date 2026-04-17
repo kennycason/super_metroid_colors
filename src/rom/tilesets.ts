@@ -7,7 +7,9 @@
 
 import { decompressLZ5, compressLZ5, snesToPc } from "./lz5";
 import { headerOffset } from "./palette";
-import type { EffectFn } from "./effects";
+import { EFFECTS, type EffectFn } from "./effects";
+
+const EFFECTS_LOOKUP = new Map(EFFECTS.map(e => [e.id, e.apply]));
 
 const TILESET_TABLE_PC = 0x07e6a2;
 const TILESET_COUNT = 29;
@@ -119,9 +121,11 @@ export function patchTilesetPalettes(
   rom: Uint8Array<ArrayBuffer>,
   effects: EffectFn[],
   colorOverrides?: Map<string, number>,
+  regionEffectOverrides?: Map<string, Set<string>>,
 ): Uint8Array<ArrayBuffer> {
   const hasOverrides = colorOverrides && [...colorOverrides.keys()].some(k => k.startsWith("tileset:"));
-  if (effects.length === 0 && !hasOverrides) return rom;
+  const hasRegionOverrides = regionEffectOverrides && [...regionEffectOverrides.keys()].some(k => k.startsWith("tileset:"));
+  if (effects.length === 0 && !hasOverrides && !hasRegionOverrides) return rom;
 
   const tilesets = readTilesetTable(rom);
   const uniqueOffsets = getUniquePaletteOffsets(tilesets);
@@ -141,8 +145,20 @@ export function patchTilesetPalettes(
     if (palette.length < PALETTE_BYTES) continue;
 
     const modified = palette.slice(0, PALETTE_BYTES);
-    for (const effectFn of effects) {
-      effectFn(modified, 0, PALETTE_BYTES / 2);
+
+    // Check for per-tileset effect overrides
+    const tsKey = `tileset:${pcOffset}`;
+    const regionOverride = regionEffectOverrides?.get(tsKey);
+    if (regionOverride) {
+      // Use region-specific effects instead of global
+      for (const effectId of regionOverride) {
+        const effect = EFFECTS_LOOKUP.get(effectId);
+        if (effect) effect(modified, 0, PALETTE_BYTES / 2);
+      }
+    } else {
+      for (const effectFn of effects) {
+        effectFn(modified, 0, PALETTE_BYTES / 2);
+      }
     }
 
     // Apply per-color overrides for this tileset
