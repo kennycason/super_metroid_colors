@@ -17,6 +17,10 @@ Supports both Samus/beam palettes and LZ5-compressed tileset palettes for full e
     <td><img src="screenshots/sm_colors_pink_samus.png" alt="Pink Samus" width="480"></td>
     <td><img src="screenshots/sm_colors_psychedelic02.png" alt="Psychedelic effect in Brinstar" width="480"></td>
   </tr>
+  <tr>
+    <td><img src="screenshots/sm_colors_map_rando_01.png" alt="Map Rando example 1" width="480"></td>
+    <td><img src="screenshots/sm_colors_map_rando_02.png" alt="Map Rando example 2" width="480"></td>
+  </tr>
 </table>
 
 ## Setup

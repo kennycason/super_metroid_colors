@@ -108,6 +108,27 @@ body {
   color: var(--danger);
 }
 
+.screenshot-gallery {
+  margin-top: 40px;
+}
+.screenshot-gallery h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.screenshot-grid img {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
 /* ROM Info Bar */
 .rom-info {
   display: flex;

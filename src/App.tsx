@@ -299,7 +299,7 @@ function App() {
     }
 
     const ext = romName.match(/\.\w+$/)?.[0] ?? ".smc";
-    downloadRom(patched, romName.replace(/\.\w+$/, "") + " Colors" + ext);
+    downloadRom(patched, "Super Metroid Colors" + ext);
   }, [categoryEffects, colorOverrides, regionEffectOverrides, romName, mapRando]);
 
   const handleClearRom = useCallback(() => {
@@ -385,6 +385,21 @@ function App() {
               <ul>
                 <li className="compat-no">SM Arcade</li>
               </ul>
+            </div>
+          </div>
+          <div className="screenshot-gallery">
+            <h3>Examples</h3>
+            <div className="screenshot-grid">
+              <img src="/screenshots/sm_colors_psychedelic.png" alt="Psychedelic effect" />
+              <img src="/screenshots/sm_colors_gameboy.png" alt="Game Boy effect" />
+              <img src="/screenshots/sm_colors_grayscale.png" alt="Grayscale effect" />
+              <img src="/screenshots/sm_colors_pink_samus.png" alt="Pink Samus" />
+              <img src="/screenshots/sm_colors_psychedelic02.png" alt="Psychedelic Brinstar" />
+              <img src="/screenshots/sm_colors_map_rando_01.png" alt="Map Rando example 1" />
+              <img src="/screenshots/sm_colors_map_rando_02.png" alt="Map Rando example 2" />
+              {Array.from({ length: 17 }, (_, i) => (
+                <img key={i} src={`/screenshots/sm_colors_${String(i + 1).padStart(2, "0")}.png`} alt={`Example ${i + 1}`} />
+              ))}
             </div>
           </div>
         </section>
