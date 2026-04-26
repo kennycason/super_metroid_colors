@@ -377,6 +377,7 @@ function App() {
                 <li className="compat-yes">Super Metroid (Vanilla)</li>
                 <li className="compat-yes">Containment Chamber</li>
                 <li className="compat-yes">SM Map Rando</li>
+                <li className="compat-yes">ROM Hacks build with SMILE</li>
               </ul>
             </div>
             <div className="compat-group">
