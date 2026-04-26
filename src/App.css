@@ -36,15 +36,16 @@ body {
 /* Header */
 .app-header {
   text-align: center;
-  padding: 32px 0 24px;
+  padding: 0px 0 24px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 24px;
 }
 .app-header h1 {
   font-size: 28px;
-  color: var(--text-bright);
   letter-spacing: 2px;
-  text-transform: uppercase;
+}
+.rainbow-title span {
+  font-weight: 700;
 }
 .subtitle {
   color: var(--text-dim);
@@ -78,6 +79,35 @@ body {
 .upload-box p { font-size: 13px; color: var(--text-dim); }
 .error { color: var(--danger); margin-top: 12px; font-size: 13px; }
 
+/* Compatibility List */
+.compatibility-list {
+  display: flex;
+  gap: 40px;
+  margin-top: 32px;
+  font-size: 13px;
+}
+.compat-group h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.compat-group ul {
+  list-style: none;
+}
+.compat-group li {
+  padding: 2px 0;
+}
+.compat-yes::before {
+  content: "+ ";
+  color: var(--green);
+}
+.compat-no::before {
+  content: "- ";
+  color: var(--danger);
+}
+
 /* ROM Info Bar */
 .rom-info {
   display: flex;
@@ -91,6 +121,16 @@ body {
   font-size: 13px;
 }
 .rom-actions { display: flex; gap: 8px; }
+.badge-maprando {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(74, 255, 138, 0.15);
+  color: var(--green);
+  border: 1px solid rgba(74, 255, 138, 0.3);
+}
 
 /* Buttons */
 .btn {

@@ -23,6 +23,13 @@ import {
   patchTilesetPalettes,
   type TilesetInfo,
 } from "./rom/tilesets";
+import {
+  isMapRando as detectMapRando,
+  readMapRandoPalettes,
+  getUniqueMapRandoPalettes,
+  mapRandoPaletteName,
+  patchMapRandoPalettes,
+} from "./rom/maprando";
 import "./App.css";
 
 type Category = PaletteRegion["category"] | "all";
@@ -65,6 +72,7 @@ function App() {
   const [regionEffectOverrides, setRegionEffectOverrides] = useState<RegionEffectOverrides>(new Map());
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null); // region key for per-region override
   const [romName, setRomName] = useState("super_metroid.smc");
+  const [mapRando, setMapRando] = useState(false);
   const [cachedTilesets, setCachedTilesets] = useState<CachedTileset[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -114,18 +122,43 @@ function App() {
 
   /** Decompress all unique tileset palettes and cache them. */
   const cacheTilesets = useCallback((rom: Uint8Array) => {
-    const tilesets = readTilesetTable(rom);
-    const seen = new Set<number>();
-    const cached: CachedTileset[] = [];
-    for (const ts of tilesets) {
-      if (seen.has(ts.palettePcOffset)) continue;
-      seen.add(ts.palettePcOffset);
-      try {
-        const palette = decompressTilesetPalette(rom, ts.palettePcOffset);
-        cached.push({ info: ts, palette });
-      } catch { /* skip bad tilesets */ }
+    const isMR = detectMapRando(rom);
+    setMapRando(isMR);
+
+    if (isMR) {
+      // Map Rando: read raw palette data from expanded banks
+      const allPalettes = readMapRandoPalettes(rom);
+      const uniqueMap = getUniqueMapRandoPalettes(allPalettes);
+      const cached: CachedTileset[] = [];
+      for (const [dataPcOffset, entries] of uniqueMap) {
+        const palette = rom.slice(dataPcOffset, dataPcOffset + 256);
+        const name = mapRandoPaletteName(entries);
+        cached.push({
+          info: {
+            index: entries[0].area * 32 + entries[0].tilesetIndex,
+            name,
+            paletteSnesPtr: 0,
+            palettePcOffset: dataPcOffset, // used as key in override system
+          },
+          palette,
+        });
+      }
+      setCachedTilesets(cached);
+    } else {
+      // Vanilla / Containment Chamber: LZ5-decompress tilesets
+      const tilesets = readTilesetTable(rom);
+      const seen = new Set<number>();
+      const cached: CachedTileset[] = [];
+      for (const ts of tilesets) {
+        if (seen.has(ts.palettePcOffset)) continue;
+        seen.add(ts.palettePcOffset);
+        try {
+          const palette = decompressTilesetPalette(rom, ts.palettePcOffset);
+          cached.push({ info: ts, palette });
+        } catch { /* skip bad tilesets */ }
+      }
+      setCachedTilesets(cached);
     }
-    setCachedTilesets(cached);
   }, []);
 
   useEffect(() => {
@@ -259,15 +292,21 @@ function App() {
       .map(id => EFFECTS.find(e => e.id === id))
       .filter((e): e is PaletteEffect => !!e)
       .map(e => e.apply);
-    patched = patchTilesetPalettes(patched, envEffectFns, colorOverrides, regionEffectOverrides);
+    if (mapRando) {
+      patched = patchMapRandoPalettes(patched, envEffectFns, colorOverrides, regionEffectOverrides);
+    } else {
+      patched = patchTilesetPalettes(patched, envEffectFns, colorOverrides, regionEffectOverrides);
+    }
 
-    downloadRom(patched, romName.replace(/\.\w+$/, "") + " Colors.smc");
-  }, [categoryEffects, colorOverrides, regionEffectOverrides, romName]);
+    const ext = romName.match(/\.\w+$/)?.[0] ?? ".smc";
+    downloadRom(patched, romName.replace(/\.\w+$/, "") + " Colors" + ext);
+  }, [categoryEffects, colorOverrides, regionEffectOverrides, romName, mapRando]);
 
   const handleClearRom = useCallback(() => {
     clearRomFromStorage();
     romRef.current = null;
     setRomLoaded(false);
+    setMapRando(false);
     setCategoryEffects(emptyCategoryEffects());
     setColorOverrides(new Map());
     setRegionEffectOverrides(new Map());
@@ -315,24 +354,43 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Super Metroid Colors</h1>
-        <p className="subtitle">ROM Palette Patcher &mdash; runs entirely in your browser</p>
+        <h1 className="rainbow-title">
+          {"SUPER METROID COLORS".split("").map((ch, i) => (
+            <span key={i} style={{ color: ch === " " ? undefined : `hsl(${(i * 19) % 360}, 85%, 65%)` }}>{ch}</span>
+          ))}
+        </h1>
       </header>
 
       {!romLoaded ? (
         <section className="upload-section">
           <div className="upload-box" onClick={() => fileInputRef.current?.click()}>
-            <div className="upload-icon">&#128190;</div>
+            {/*<div className="upload-icon">&#128190;</div>*/}
             <h2>Upload your Super Metroid ROM</h2>
             <p>Click or drag a .smc / .sfc file here. Stored locally, never uploaded.</p>
             <input ref={fileInputRef} type="file" accept=".smc,.sfc,.bin" onChange={handleFileUpload} hidden />
           </div>
           {error && <p className="error">{error}</p>}
+          <div className="compatibility-list">
+            <div className="compat-group">
+              <h3>Supported</h3>
+              <ul>
+                <li className="compat-yes">Super Metroid (Vanilla)</li>
+                <li className="compat-yes">Containment Chamber</li>
+                <li className="compat-yes">SM Map Rando</li>
+              </ul>
+            </div>
+            <div className="compat-group">
+              <h3>Not Yet Supported</h3>
+              <ul>
+                <li className="compat-no">SM Arcade</li>
+              </ul>
+            </div>
+          </div>
         </section>
       ) : (
         <>
           <section className="rom-info">
-            <span>ROM: <strong>{romName}</strong> ({((romRef.current?.length ?? 0) / 1024).toFixed(0)} KB)</span>
+            <span>ROM: <strong>{romName}</strong> ({((romRef.current?.length ?? 0) / 1024).toFixed(0)} KB){mapRando && <span className="badge-maprando">Map Rando</span>}</span>
             <div className="rom-actions">
               <button onClick={handleReset} className="btn btn-secondary" disabled={!hasAnyChanges}>
                 Reset
@@ -421,18 +479,6 @@ function App() {
 }
 
 // ─── Swatch Component ──────────────────────────────────────────────────────
-
-function bgr555ToHex(bgr555: number): string {
-  const { r, g, b } = bgr555ToRgb(bgr555);
-  return `#${rgb5to8(r).toString(16).padStart(2, "0")}${rgb5to8(g).toString(16).padStart(2, "0")}${rgb5to8(b).toString(16).padStart(2, "0")}`;
-}
-
-function hexToBgr555(hex: string): number {
-  const rr = parseInt(hex.slice(1, 3), 16);
-  const gg = parseInt(hex.slice(3, 5), 16);
-  const bb = parseInt(hex.slice(5, 7), 16);
-  return rgbToBgr555(Math.round(rr * 31 / 255), Math.round(gg * 31 / 255), Math.round(bb * 31 / 255));
-}
 
 function Swatch({ color, overrideColor, overrideKey, onColorOverride }: {
   color: number;

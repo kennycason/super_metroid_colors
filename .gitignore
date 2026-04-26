@@ -29,3 +29,6 @@ dist-ssr
 
 # Debug/isolation scripts
 scripts/
+
+# Infrastructure (private repo: super_metroid_colors_infra)
+infrastructure/
