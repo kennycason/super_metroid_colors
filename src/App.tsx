@@ -12,6 +12,7 @@ import { EFFECTS, type PaletteEffect } from "./rom/effects";
 import { REGIONS, CATEGORIES, type PaletteRegion } from "./rom/regions";
 import {
   downloadRom,
+  fixChecksum,
   validateRom,
   saveRomToStorage,
   loadRomFromStorage,
@@ -298,9 +299,40 @@ function App() {
       patched = patchTilesetPalettes(patched, envEffectFns, colorOverrides, regionEffectOverrides);
     }
 
+    fixChecksum(patched);
     const ext = romName.match(/\.\w+$/)?.[0] ?? ".smc";
     downloadRom(patched, "Super Metroid Colors" + ext);
   }, [categoryEffects, colorOverrides, regionEffectOverrides, romName, mapRando]);
+
+  const handleFullyRandomize = useCallback(() => {
+    const colorfulEffects = EFFECTS.filter(e =>
+      !["grayscale", "dark", "ghost10", "ghost25", "ghost50", "desaturated"].includes(e.id)
+    );
+    const pick = () => {
+      const count = 1 + Math.floor(Math.random() * 2); // 1-2 effects per region
+      const shuffled = [...colorfulEffects].sort(() => Math.random() - 0.5);
+      return new Set(shuffled.slice(0, count).map(e => e.id));
+    };
+
+    startTransition(() => {
+      setRegionEffectOverrides(prev => {
+        const next = new Map(prev);
+        // Randomize all ROM regions
+        for (const region of REGIONS) {
+          if (selectedCategory !== "all" && region.category !== selectedCategory) continue;
+          next.set(region.id, pick());
+        }
+        // Randomize all tilesets
+        if (selectedCategory === "all" || selectedCategory === "environment") {
+          for (const ct of cachedTilesets) {
+            next.set(`tileset:${ct.info.palettePcOffset}`, pick());
+          }
+        }
+        return next;
+      });
+      setSelectedRegion(null);
+    });
+  }, [selectedCategory, cachedTilesets]);
 
   const handleClearRom = useCallback(() => {
     clearRomFromStorage();
@@ -428,6 +460,8 @@ function App() {
                   {cat.name}
                 </button>
               ))}
+              <span className="pill-separator">|</span>
+              <button className="pill randomize" onClick={handleFullyRandomize}>Fully Randomize</button>
             </div>
           </section>
 
@@ -506,8 +540,21 @@ function Swatch({ color, overrideColor, overrideKey, onColorOverride }: {
   const effectiveColor = overrideColor ?? color;
   const { r, g, b } = bgr555ToRgb(effectiveColor);
 
+  // Close when another swatch opens
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: Event) => {
+      if ((e as CustomEvent).detail !== overrideKey) setOpen(false);
+    };
+    window.addEventListener("swatch-open", handler);
+    return () => window.removeEventListener("swatch-open", handler);
+  }, [open, overrideKey]);
+
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!open) {
+      window.dispatchEvent(new CustomEvent("swatch-open", { detail: overrideKey }));
+    }
     setOpen(prev => !prev);
   };
 
@@ -533,6 +580,18 @@ function ColorPopover({ r, g, b, onClose, onChange }: {
   onChange: (r: number, g: number, b: number) => void;
 }) {
   const hex = `#${rgb5to8(r).toString(16).padStart(2, "0")}${rgb5to8(g).toString(16).padStart(2, "0")}${rgb5to8(b).toString(16).padStart(2, "0")}`.toUpperCase();
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === "Enter") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  // Focus the popover so keyboard events work immediately
+  useEffect(() => { popoverRef.current?.focus(); }, []);
 
   const handleHex = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -546,8 +605,8 @@ function ColorPopover({ r, g, b, onClose, onChange }: {
 
   return (
     <>
-      <div className="picker-backdrop" onClick={e => { e.stopPropagation(); onClose(); }} />
-      <div className="picker-popover" onClick={e => e.stopPropagation()}>
+      <div className="picker-backdrop" onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onClose(); }} />
+      <div ref={popoverRef} className="picker-popover" onClick={e => e.stopPropagation()} tabIndex={-1}>
         <div className="picker-preview" style={{ backgroundColor: rgbToCss(r, g, b) }} />
         <div className="picker-channel">
           <label>R</label>

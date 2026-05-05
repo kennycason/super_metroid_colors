@@ -85,6 +85,34 @@ export async function clearRomFromStorage() {
 }
 
 /**
+ * Fix the SNES internal checksum after patching.
+ * Checksum complement at 0x7FDC-0x7FDD, checksum at 0x7FDE-0x7FDF (unheadered).
+ */
+export function fixChecksum(rom: Uint8Array) {
+  const hdr = headerOffset(rom);
+  const checksumOffset = hdr + 0x7fdc;
+
+  // Zero out the existing checksum fields so they don't affect the sum
+  rom[checksumOffset] = 0xff;
+  rom[checksumOffset + 1] = 0xff;
+  rom[checksumOffset + 2] = 0;
+  rom[checksumOffset + 3] = 0;
+
+  // Sum all bytes (skipping any copier header)
+  let sum = 0;
+  for (let i = hdr; i < rom.length; i++) {
+    sum += rom[i];
+  }
+  sum &= 0xffff;
+
+  const complement = sum ^ 0xffff;
+  rom[checksumOffset] = complement & 0xff;
+  rom[checksumOffset + 1] = (complement >> 8) & 0xff;
+  rom[checksumOffset + 2] = sum & 0xff;
+  rom[checksumOffset + 3] = (sum >> 8) & 0xff;
+}
+
+/**
  * Download a ROM as a file
  */
 export function downloadRom(rom: Uint8Array, filename: string) {

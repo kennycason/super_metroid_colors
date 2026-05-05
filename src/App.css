@@ -217,6 +217,32 @@ section h3 {
   color: var(--accent);
 }
 
+.pill-separator {
+  color: var(--text-dim);
+  font-size: 16px;
+  align-self: center;
+  margin: 0 2px;
+  user-select: none;
+}
+.pill.randomize {
+  background: linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #9b59b6);
+  background-size: 300% 300%;
+  animation: randomize-gradient 3s ease infinite;
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+.pill.randomize:hover {
+  filter: brightness(1.15);
+  border-color: transparent;
+}
+@keyframes randomize-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 /* Effects Grid */
 .effects-grid {
   display: flex;
