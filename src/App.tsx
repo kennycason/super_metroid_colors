@@ -173,28 +173,39 @@ function App() {
     });
   }, [cacheTilesets]);
 
+  const loadFile = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rom = new Uint8Array(reader.result as ArrayBuffer);
+      const err = validateRom(rom);
+      if (err) { setError(err); return; }
+      setError(null);
+      romRef.current = rom;
+      setRomLoaded(true);
+      setCategoryEffects(emptyCategoryEffects());
+      setColorOverrides(new Map());
+      setRegionEffectOverrides(new Map());
+      setSelectedRegion(null);
+      setRomName(file.name);
+      cacheTilesets(rom);
+      saveRomToStorage(rom, file.name);
+    };
+    reader.readAsArrayBuffer(file);
+  }, [cacheTilesets]);
+
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const rom = new Uint8Array(reader.result as ArrayBuffer);
-        const err = validateRom(rom);
-        if (err) { setError(err); return; }
-        setError(null);
-        romRef.current = rom;
-        setRomLoaded(true);
-        setCategoryEffects(emptyCategoryEffects());
-        setColorOverrides(new Map());
-        setRegionEffectOverrides(new Map());
-        setSelectedRegion(null);
-        setRomName(file.name);
-        cacheTilesets(rom);
-        saveRomToStorage(rom, file.name);
-      };
-      reader.readAsArrayBuffer(file);
-    }, [cacheTilesets],
+      if (file) loadFile(file);
+    }, [loadFile],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files?.[0];
+      if (file) loadFile(file);
+    }, [loadFile],
   );
 
   const handleToggleEffect = useCallback((effect: PaletteEffect) => {
@@ -395,7 +406,7 @@ function App() {
 
       {!romLoaded ? (
         <section className="upload-section">
-          <div className="upload-box" onClick={() => fileInputRef.current?.click()}>
+          <div className="upload-box" onClick={() => fileInputRef.current?.click()} onDrop={handleDrop} onDragOver={e => e.preventDefault()}>
             {/*<div className="upload-icon">&#128190;</div>*/}
             <h2>Upload your Super Metroid ROM</h2>
             <p>Click or drag a .smc / .sfc file here. Stored locally, never uploaded.</p>
