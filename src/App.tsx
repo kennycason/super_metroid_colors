@@ -34,7 +34,7 @@ import {
 import "./App.css";
 
 type Category = PaletteRegion["category"] | "all";
-type PaletteCategory = "samus" | "environment" | "beams" | "bosses";
+type PaletteCategory = "samus" | "environment" | "beams" | "bosses" | "enemies";
 
 interface CachedTileset {
   info: TilesetInfo;
@@ -47,6 +47,7 @@ interface CategoryEffects {
   environment: Set<string>;
   beams: Set<string>;
   bosses: Set<string>;
+  enemies: Set<string>;
 }
 
 /** Individual color overrides: key = "regionId:colorIndex" or "tileset:pcOffset:colorIndex" */
@@ -60,7 +61,7 @@ type ColorOverrides = Map<string, number>; // BGR555 value
 type RegionEffectOverrides = Map<string, Set<string>>;
 
 function emptyCategoryEffects(): CategoryEffects {
-  return { samus: new Set(), environment: new Set(), beams: new Set(), bosses: new Set() };
+  return { samus: new Set(), environment: new Set(), beams: new Set(), bosses: new Set(), enemies: new Set() };
 }
 
 function App() {
@@ -108,7 +109,7 @@ function App() {
 
     for (const effect of EFFECTS) {
       if (selectedCategory === "all") {
-        const cats: PaletteCategory[] = ["samus", "environment", "beams", "bosses"];
+        const cats: PaletteCategory[] = ["samus", "environment", "beams", "bosses", "enemies"];
         const count = cats.filter(c => categoryEffects[c].has(effect.id)).length;
         if (count === cats.length) states.set(effect.id, "active");
         else if (count > 0) states.set(effect.id, "partial");
@@ -312,7 +313,8 @@ function App() {
 
     fixChecksum(patched);
     const ext = romName.match(/\.\w+$/)?.[0] ?? ".smc";
-    downloadRom(patched, "Super Metroid Colors" + ext);
+    const baseName = romName.replace(/\.\w+$/, "");
+    downloadRom(patched, baseName + " Colors" + ext);
   }, [categoryEffects, colorOverrides, regionEffectOverrides, romName, mapRando]);
 
   const handleFullyRandomize = useCallback(() => {
@@ -503,6 +505,19 @@ function App() {
 
           <section className="preview-section">
             <div className="preview-grid">
+              {showTilesets && cachedTilesets.map(ct => {
+                const tsKey = `tileset:${ct.info.palettePcOffset}`;
+                return (
+                  <TilesetPreview key={`ts_${ct.info.index}`} cached={ct}
+                    activeEffects={getEffectsForRegion(tsKey, "environment")}
+                    colorOverrides={colorOverrides}
+                    onColorOverride={handleColorOverride}
+                    isSelected={selectedRegion === tsKey}
+                    hasOverride={regionEffectOverrides.has(tsKey)}
+                    regionKey={tsKey}
+                    onSelect={handleSelectRegion} />
+                );
+              })}
               {visibleRegions.map(region => {
                 const colors = regionColors.get(region.id);
                 if (!colors) return null;
@@ -515,19 +530,6 @@ function App() {
                     isSelected={selectedRegion === region.id}
                     hasOverride={regionEffectOverrides.has(region.id)}
                     regionKey={region.id}
-                    onSelect={handleSelectRegion} />
-                );
-              })}
-              {showTilesets && cachedTilesets.map(ct => {
-                const tsKey = `tileset:${ct.info.palettePcOffset}`;
-                return (
-                  <TilesetPreview key={`ts_${ct.info.index}`} cached={ct}
-                    activeEffects={getEffectsForRegion(tsKey, "environment")}
-                    colorOverrides={colorOverrides}
-                    onColorOverride={handleColorOverride}
-                    isSelected={selectedRegion === tsKey}
-                    hasOverride={regionEffectOverrides.has(tsKey)}
-                    regionKey={tsKey}
                     onSelect={handleSelectRegion} />
                 );
               })}

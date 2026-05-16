@@ -84,13 +84,100 @@ describe("region bounds", () => {
         const c = lo | (hi << 8);
         expect(c).toBeLessThanOrEqual(0x7fff);
       }
-      // Also verify bytes immediately AFTER the region are NOT valid palette data
-      // (helps catch regions defined too small, but main purpose is catching too large)
-      const afterOffset = offset + region.colorCount * 2;
-      if (afterOffset + 2 <= rom.length) {
-        const afterWord = rom[afterOffset] | (rom[afterOffset + 1] << 8);
-        // Not a strict check, but if > 0x7FFF it's definitely code/data
+    }
+  });
+
+  it("no region overlaps another", () => {
+    const hdr = headerOffset(rom);
+    for (let i = 0; i < REGIONS.length; i++) {
+      const a = REGIONS[i];
+      const aStart = a.offset + hdr;
+      const aEnd = aStart + a.colorCount * 2;
+      for (let j = i + 1; j < REGIONS.length; j++) {
+        const b = REGIONS[j];
+        const bStart = b.offset + hdr;
+        const bEnd = bStart + b.colorCount * 2;
+        const overlaps = aStart < bEnd && bStart < aEnd;
+        if (overlaps) {
+          throw new Error(`OVERLAP: ${a.name} [${aStart.toString(16)}-${aEnd.toString(16)}] overlaps ${b.name} [${bStart.toString(16)}-${bEnd.toString(16)}]`);
+        }
       }
+    }
+  });
+});
+
+describe("enemy palette validation (vanilla ROM)", () => {
+  let vanillaRom: Uint8Array<ArrayBuffer>;
+
+  beforeAll(() => {
+    try {
+      const buf = readFileSync(resolve(__dirname, "vanilla-rom.smc"));
+      vanillaRom = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    } catch {
+      // vanilla ROM not available, skip
+    }
+  });
+
+  it("all enemy/boss regions have valid BGR555 in vanilla ROM", () => {
+    if (!vanillaRom) return; // skip if no vanilla ROM
+    const hdr = headerOffset(vanillaRom);
+    const enemyAndBossRegions = REGIONS.filter(r => r.category === "enemies" || r.category === "bosses");
+    for (const region of enemyAndBossRegions) {
+      const offset = region.offset + hdr;
+      expect(offset + region.colorCount * 2).toBeLessThanOrEqual(vanillaRom.length);
+      for (let i = 0; i < region.colorCount; i++) {
+        const lo = vanillaRom[offset + i * 2];
+        const hi = vanillaRom[offset + i * 2 + 1];
+        const c = lo | (hi << 8);
+        if (c > 0x7fff) {
+          throw new Error(`${region.name} color ${i} at 0x${(offset + i * 2).toString(16)} = 0x${c.toString(16)} > 0x7FFF`);
+        }
+      }
+    }
+  });
+
+  it("enemy palette offsets match species header derivation in vanilla ROM", () => {
+    if (!vanillaRom) return;
+    const hdr = headerOffset(vanillaRom);
+
+    function snesToPcLocal(snesAddr: number): number {
+      const bank = (snesAddr >> 16) & 0xFF;
+      const addr = snesAddr & 0xFFFF;
+      return hdr + ((bank & 0x7F) * 0x8000) + (addr & 0x7FFF);
+    }
+    function readU8(offset: number) { return vanillaRom[offset]; }
+    function readU16(offset: number) { return vanillaRom[offset] | (vanillaRom[offset + 1] << 8); }
+
+    // Species IDs for bosses/enemies we added
+    const speciesMap: Record<string, number> = {
+      boss_spore_spawn: 0xDF3F,
+      boss_ridley: 0xE17F,
+      boss_kraid: 0xE2BF,
+      boss_phantoon: 0xE4BF,
+      boss_draygon: 0xDE3F,
+      boss_crocomire: 0xDDBF,
+      boss_mother_brain: 0xEC3F,
+      boss_botwoon: 0xF293,
+      boss_torizo: 0xEEFF,
+      boss_big_metroid: 0xEEBF,
+      boss_mini_kraid: 0xE0FF,
+      enemy_metroid: 0xDD7F,
+      enemy_zoomer: 0xDCFF,
+      enemy_ripper: 0xD47F,
+      enemy_sidehopper: 0xD93F,
+      enemy_space_pirate: 0xF353,
+      enemy_kihunter_green: 0xEABF,
+    };
+
+    for (const [regionId, speciesId] of Object.entries(speciesMap)) {
+      const region = REGIONS.find(r => r.id === regionId);
+      if (!region) continue;
+      const headerPc = snesToPcLocal(0xA00000 | speciesId);
+      const palPtr = readU16(headerPc + 2);
+      const aiBank = readU8(headerPc + 0x0C);
+      const palSnes = (aiBank << 16) | (palPtr & 0xFFFF);
+      const palPc = snesToPcLocal(palSnes) - hdr; // convert back to unheadered offset
+      expect(palPc).toBe(region.offset);
     }
   });
 });
